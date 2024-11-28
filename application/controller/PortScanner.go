@@ -11,7 +11,7 @@ import (
 const SRC_PORT = 54321
 const SRC_IP = "192.168.0.107"
 
-func ScanPorts(cfg *domain.ScannerConfig, writer func(domain.ScanResult)) {
+func ScanPorts(cfg *domain.ScannerConfig, writer func(domain.ScanResult, *domain.ScannerConfig)) {
 	if cfg.Threads == 0 {
 		syncScan(cfg, writer)
 	} else {
@@ -19,18 +19,18 @@ func ScanPorts(cfg *domain.ScannerConfig, writer func(domain.ScanResult)) {
 	}
 }
 
-func syncScan(cfg *domain.ScannerConfig, writer func(domain.ScanResult)) {
+func syncScan(cfg *domain.ScannerConfig, writer func(domain.ScanResult, *domain.ScannerConfig)) {
 	for _, portsRange := range cfg.Ports {
 		for port := portsRange.Start; port <= portsRange.End; port++ {
 			value, ok := scanPort(portsRange.Protocol, port, cfg)
 			if ok {
-				writer(value)
+				writer(value, cfg)
 			}
 		}
 	}
 }
 
-func goScan(cfg *domain.ScannerConfig, writer func(domain.ScanResult)) {
+func goScan(cfg *domain.ScannerConfig, writer func(domain.ScanResult, *domain.ScannerConfig)) {
 	var wg sync.WaitGroup
 	results := make(chan domain.ScanResult, cfg.PortsCount)
 	data := make(chan domain.PortScan, cfg.PortsCount)
@@ -43,7 +43,7 @@ func goScan(cfg *domain.ScannerConfig, writer func(domain.ScanResult)) {
 		checked := make(map[int]struct{}, cfg.PortsCount)
 		for _, portsRange := range cfg.Ports {
 			for port := portsRange.Start; port <= portsRange.End; port++ {
-				if _, ok := checked[port]; !ok {
+				if _, ok := checked[port]; ok {
 					continue
 				}
 				data <- domain.PortScan{
@@ -62,7 +62,7 @@ func goScan(cfg *domain.ScannerConfig, writer func(domain.ScanResult)) {
 	}()
 
 	for res := range results {
-		writer(res)
+		writer(res, cfg)
 	}
 }
 
