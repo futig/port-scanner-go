@@ -8,11 +8,15 @@ import (
 	"strings"
 	"time"
 
-	domain "github.com/futig/PortScannerGo/domain"
+	"github.com/futig/PortScannerGo/domain"
 )
 
 func ParseArgs() (*domain.ScannerConfig, error) {
-	args := os.Args[1:]
+	if os.Args[1] != "portscan" {
+		return nil, fmt.Errorf("Unknown command")
+	}
+
+	args := os.Args[2:]
 	cfg := domain.NewDefaultScannerConfig()
 
 	optionsEnd, err := readOptions(args, cfg)
@@ -33,7 +37,7 @@ func ParseArgs() (*domain.ScannerConfig, error) {
 		return nil, fmt.Errorf("failed to parse ports: there is no ports to scan")
 	}
 
-	err = readPorts(args[1:], cfg)
+	err = readPorts(args[optionsEnd+2:], cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse ports: %w", err)
 	}
@@ -50,7 +54,10 @@ func readOptions(args []string, cfg *domain.ScannerConfig) (int, error) {
 	for ; i < len(args); i++ {
 		switch args[i] {
 		case "--timeout":
-			err := parseTimeoutOption(i, args, timeoutSet, cfg)
+			if timeoutSet {
+				return 0, fmt.Errorf("option '%v' is repeated", args[i])
+			}
+			err := parseTimeoutOption(i, args, cfg)
 			if err != nil {
 				return 0, err
 			}
@@ -58,7 +65,10 @@ func readOptions(args []string, cfg *domain.ScannerConfig) (int, error) {
 			timeoutSet = true
 
 		case "-j", "--num-threads":
-			err := parseThreadOption(i, args, threadsSet, cfg)
+			if threadsSet {
+				return 0, fmt.Errorf("option '%v' is repeated", args[i])
+			}
+			err := parseThreadOption(i, args, cfg)
 			if err != nil {
 				return 0, err
 			}
@@ -91,14 +101,44 @@ func readOptions(args []string, cfg *domain.ScannerConfig) (int, error) {
 }
 
 func readIp(ip string, cfg *domain.ScannerConfig) error {
-	if net.ParseIP(ip) == nil {
+	ipv6 := net.ParseIP(ip)
+	if ipv6 == nil {
 		fmt.Errorf("invalid IP address '%s'\n", ip)
 	}
-	cfg.Ip = ip
+	cfg.Ip = ipv6.To4()
 	return nil
 }
 
 func readPorts(args []string, cfg *domain.ScannerConfig) error {
+	ports := make([]domain.PortScanInfo, 0)
+	count := 0
+	for _, item := range args {
+		splitData := strings.Split(item, "/")
+		for _, portsRange := range strings.Split(splitData[1], ",") {
+			bounds := strings.Split(portsRange, "-")
+			start, err := strconv.Atoi(bounds[0])
+			if err != nil {
+				return err
+			}
+			var end int
+			if len(bounds) == 2 {
+				end, err = strconv.Atoi(bounds[1])
+				if err != nil {
+					return err
+				}
+			} else {
+				end = start
+			}
+			count += end - start + 1
+			ports = append(ports, domain.PortScanInfo{
+				Protocol: splitData[0],
+				Start:    start,
+				End:      end,
+			})
+		}
+	}
+	cfg.Ports = ports
+	cfg.PortsCount = count
 	return nil
 }
 
@@ -113,10 +153,7 @@ func readIntValue(i int, args []string) (int, error) {
 	return value, nil
 }
 
-func parseTimeoutOption(i int, args []string, set bool, cfg *domain.ScannerConfig) error {
-	if set {
-		return fmt.Errorf("option '%v' is repeated", args[i])
-	}
+func parseTimeoutOption(i int, args []string, cfg *domain.ScannerConfig) error {
 	value, err := readIntValue(i, args)
 	if err != nil {
 		return err
@@ -125,10 +162,7 @@ func parseTimeoutOption(i int, args []string, set bool, cfg *domain.ScannerConfi
 	return nil
 }
 
-func parseThreadOption(i int, args []string, set bool, cfg *domain.ScannerConfig) error {
-	if set {
-		return fmt.Errorf("option '%v' is repeated", args[i])
-	}
+func parseThreadOption(i int, args []string, cfg *domain.ScannerConfig) error {
 	value, err := readIntValue(i, args)
 	if err != nil {
 		return err

@@ -5,6 +5,7 @@ import (
 	"os"
 
 	cli "github.com/futig/PortScannerGo/presentation"
+	"github.com/futig/PortScannerGo/controller"
 )
 
 func main() {
@@ -13,5 +14,7 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+	result := controller.ScanPorts(cfg)
+	
 	fmt.Printf("%+v", cfg)
 }
