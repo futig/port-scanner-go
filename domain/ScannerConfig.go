@@ -18,7 +18,7 @@ type ScannerConfig struct {
 func NewDefaultScannerConfig() *ScannerConfig {
 	return &ScannerConfig{
 		Timeout: time.Second * 2,
-		Threads: 1,
+		Threads: 0,
 		Ports:   make([]PortScanInfo, 0),
 		Ip:      nil,
 	}

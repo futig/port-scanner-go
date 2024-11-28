@@ -2,6 +2,7 @@ package presentation
 
 import (
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"strconv"
@@ -167,6 +168,6 @@ func parseThreadOption(i int, args []string, cfg *domain.ScannerConfig) error {
 	if err != nil {
 		return err
 	}
-	cfg.Threads = value
+	cfg.Threads = int(math.Max(0, math.Min(float64(value), 100)))
 	return nil
 }

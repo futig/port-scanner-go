@@ -5,6 +5,6 @@ import "time"
 type ScanResult struct {
 	Protocol string
 	Port int
-	time time.Duration
-	Gues string
+	Duration time.Duration
+	Guess string
 }
