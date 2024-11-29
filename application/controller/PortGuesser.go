@@ -54,6 +54,7 @@ func detectHTTP(targetIP net.IP, port int, timeout time.Duration) (bool, error) 
 
     request := "HEAD / HTTP/1.0\r\n\r\n"
     _, err = conn.Write([]byte(request))
+    
     if err != nil {
         return false, err
     }
@@ -73,14 +74,13 @@ func detectHTTP(targetIP net.IP, port int, timeout time.Duration) (bool, error) 
 
 func detectDNS(targetIP net.IP, port int, timeout time.Duration) (bool, error) {
     address := fmt.Sprintf("%s:%d", targetIP.String(), port)
-    conn, err := net.DialTimeout("tcp", address, timeout)
+    conn, err := net.DialTimeout("udp", address, timeout)
     if err != nil {
         return false, err
     }
     defer conn.Close()
 
     conn.SetDeadline(time.Now().Add(timeout))
-
     // habrahabr.ru A
     hexStr := "9bce0100000100000000000109686162726168616272027275000001000100002904d000000000000c000a00085de710734d259aec"
     bytes, _ := hex.DecodeString(hexStr)
@@ -91,6 +91,7 @@ func detectDNS(targetIP net.IP, port int, timeout time.Duration) (bool, error) {
 
 	buffer := make([]byte, 1024)
 	n, err := conn.Read(buffer)
+    
 	if err != nil {
 		return false, err
 	}
@@ -106,7 +107,7 @@ func detectDNS(targetIP net.IP, port int, timeout time.Duration) (bool, error) {
 
 func detectEcho(targetIP net.IP, port int, timeout time.Duration) (bool, error) {
     address := fmt.Sprintf("%s:%d", targetIP.String(), port)
-    conn, err := net.DialTimeout("tcp", address, timeout)
+    conn, err := net.DialTimeout("udp", address, timeout)
     if err != nil {
         return false, err
     }
