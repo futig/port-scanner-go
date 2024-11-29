@@ -17,23 +17,18 @@ func scanUDP(targetIP net.IP, port int, timeout time.Duration) (bool, error) {
 	}
 	defer conn.Close()
 
-	_, err = conn.Write([]byte{})
+	conn.SetDeadline(time.Now().Add(timeout))
+
+	request := "HEAD / HTTP/1.0\r\n\r\n"
+	_, err = conn.Write([]byte(request))
 	if err != nil {
 		return false, err
 	}
 
-	conn.SetReadDeadline(time.Now().Add(timeout))
-
-	buf := make([]byte, 1024)
-	_, _, err = conn.ReadFromUDP(buf)
+	buffer := make([]byte, 1024)
+	_, err = conn.Read(buffer)
 	if err != nil {
-		netErr, ok := err.(net.Error)
-		if ok && netErr.Timeout() {
-			// port may be open or filtered
-			return true, nil
-		}
-		// Port Unreachable received
-		return false, nil
+		return false, err
 	}
 	return true, nil
 }

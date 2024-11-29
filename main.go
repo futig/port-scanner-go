@@ -19,20 +19,14 @@ func main() {
 }
 
 func PrintOpenPort(result domain.ScanResult, cfg *domain.ScannerConfig) {
-	// header := "PROTOCOL  PORT"
-	// if cfg.Verbose {
-	// 	header += "     TIME(ms)"
-	// }
-	// if cfg.Guess {
-	// 	header += "     GUESS"
-	// }
-	// fmt.Println(header)
-	// fmt.Println("------------------------------------------------")
-
-	line := fmt.Sprintf("%-9s %-6d", result.Protocol, result.Port)
+	line := fmt.Sprintf("%s %-10s %d %-10s", result.Protocol, " ", result.Port, " ")
 
 	if cfg.Verbose {
-		line += fmt.Sprintf(" %-10d", result.Duration.Milliseconds())
+		if result.Protocol == "tcp" {
+			line += fmt.Sprintf(" [%dms] %-10s", result.Duration.Milliseconds(), " ")
+		} else {
+			line += fmt.Sprintf(" [%s] %-10s", "-", " ")
+		}
 	}
 
 	if cfg.Guess {

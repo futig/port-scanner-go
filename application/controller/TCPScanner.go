@@ -10,85 +10,117 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
+
+	"github.com/futig/PortScannerGo/domain"
 )
 
-
-const INTERFACE_NAME = "Ethernet"
 
 func scanTCP(srcIP, dstIP net.IP, srcPort, dstPort int, timeout time.Duration, timer bool) (bool, time.Duration, error) {
 	var elapsedTime time.Duration
 	startTime := time.Now()
-	
+
 	err := sendSYNPacket(srcIP, dstIP, srcPort, dstPort)
-    if err != nil {
-        fmt.Printf("Ошибка при отправке SYN-пакета: %v\n", err)
-        return false, elapsedTime, err
-    }
-
-    open, err := listenForResponse(INTERFACE_NAME, srcIP, dstIP, srcPort, dstPort, 2*time.Second)
-    if err != nil {
-        fmt.Printf("Ошибка при прослушивании ответа: %v\n", err)
-        return false, elapsedTime, err
-    }
+	if err != nil {
+		return false, elapsedTime, err
+	}
+	
+	open, err := listenForResponse(domain.INTERFACE_NAME, srcIP, dstIP, srcPort, dstPort, timeout)
+	if err != nil {
+		return false, elapsedTime, err
+	}
 	elapsedTime = time.Since(startTime)
-
 	return open, elapsedTime, nil
 }
 
-
 func sendSYNPacket(srcIP, dstIP net.IP, srcPort, dstPort int) error {
-    ipHeader := buildIPHeader(srcIP, dstIP)
-    tcpHeader := buildTCPHeader(srcIP, dstIP, srcPort, dstPort)
+	ipHeader := buildIPHeader(srcIP, dstIP)
+	tcpHeader := buildTCPHeader(srcIP, dstIP, srcPort, dstPort)
 
-    packet := append(ipHeader, tcpHeader...)
+	packet := append(ipHeader, tcpHeader...)
 
-    fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, 0xff)
-    if err != nil {
-        return err
-    }
-    defer syscall.Close(fd)
+	fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, syscall.IPPROTO_TCP)
+	if err != nil {
+		return err
+	}
+	defer syscall.Close(fd)
 
-    err = syscall.SetsockoptInt(fd, syscall.IPPROTO_IP, 0x3, 1)
-    if err != nil {
-        return err
-    }
+	err = syscall.SetsockoptInt(fd, syscall.IPPROTO_IP, syscall.IP_HDRINCL, 1)
+	if err != nil {
+		return err
+	}
 
-    addr := &syscall.SockaddrInet4{}
-    copy(addr.Addr[:], dstIP.To4())
+	// ipLayer := &layers.IPv4{
+	//     SrcIP:    srcIP, // Replace with your source IP
+	//     DstIP:    dstIP,
+	//     Version:  4,
+	//     TTL:      64,
+	//     Protocol: layers.IPProtocolTCP,
+	// }
 
-    err = syscall.Sendto(fd, packet, 0, addr)
-    if err != nil {
-        return err
-    }
+	// tcpLayer := &layers.TCP{
+	//     SrcPort: layers.TCPPort(srcPort), // Arbitrary source port
+	//     DstPort: layers.TCPPort(dstPort),
+	//     Seq:     1105024978,
+	//     SYN:     true,
+	//     Window:  14600,
+	// }
 
-    return nil
+	// // Set network layer for checksum calculation
+	// err = tcpLayer.SetNetworkLayerForChecksum(ipLayer)
+	// if err != nil {
+	//     return err
+	// }
+
+	// // Serialize the layers
+	// buf := gopacket.NewSerializeBuffer()
+	// opts := gopacket.SerializeOptions{
+	//     ComputeChecksums: true,
+	//     FixLengths:       true,
+	// }
+
+	// err = gopacket.SerializeLayers(buf, opts, ipLayer, tcpLayer)
+	// if err != nil {
+	//     return err
+	// }
+
+	addr := syscall.SockaddrInet4{}
+	copy(addr.Addr[:], dstIP)
+
+	err = syscall.Sendto(fd, packet, 0, &addr)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func listenForResponse(interfaceName string, srcIP, dstIP net.IP, srcPort, dstPort int, timeout time.Duration) (bool, error) {
-    handle, err := pcap.OpenLive(interfaceName, 65536, true, pcap.BlockForever)
-    if err != nil {
-        return false, err
-    }
-    defer handle.Close()
+	handle, err := pcap.OpenLive(interfaceName, 65536, true, time.Microsecond)
+	if err != nil {
+		return false, err
+	}
+	defer handle.Close()
+	// Установка BPF-фильтра для захвата релевантных пакетов
+	filter := fmt.Sprintf("tcp and src host %s and src port %d and dst port %d", dstIP.String(), dstPort, srcPort)
+	if err := handle.SetBPFFilter(filter); err != nil {
+		return false, err
+	}
 
-    // Установка BPF-фильтра для захвата релевантных пакетов
-    filter := fmt.Sprintf("tcp and src host %s and src port %d and dst port %d", dstIP.String(), dstPort, srcPort)
-    if err := handle.SetBPFFilter(filter); err != nil {
-        return false, err
-    }
-
-    packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
-    timeoutChan := time.After(timeout)
+	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
+	timeoutChan := time.After(timeout)
 
     for {
         select {
-        case packet := <-packetSource.Packets():
+        case packet := <-packetSource.Packets() :
             if packet == nil {
                 continue
             }
             tcpLayer := packet.Layer(layers.LayerTypeTCP)
             if tcpLayer != nil {
-                tcp, _ := tcpLayer.(*layers.TCP)
+                tcp, ok := tcpLayer.(*layers.TCP)
+                if !ok {
+                    continue
+                }
                 if tcp.SrcPort == layers.TCPPort(dstPort) && tcp.DstPort == layers.TCPPort(srcPort) {
                     if tcp.SYN && tcp.ACK {
                         return true, nil // Порт открыт
@@ -99,6 +131,8 @@ func listenForResponse(interfaceName string, srcIP, dstIP net.IP, srcPort, dstPo
             }
         case <-timeoutChan:
             return false, nil
+		default:
+			continue
         }
     }
 }
@@ -119,7 +153,7 @@ func buildTCPHeader(srcIP, dstIP net.IP, srcPort, dstPort int) []byte {
 
 func buildIPHeader(srcIP, dstIP net.IP) []byte {
 	ipHeader := make([]byte, 20)
-	ipHeader[0] = byte(45)
+	ipHeader[0] = byte(69)
 	binary.BigEndian.PutUint16(ipHeader[2:4], uint16(40))
 	ipHeader[8] = 64
 	ipHeader[9] = 6

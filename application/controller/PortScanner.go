@@ -8,8 +8,6 @@ import (
 	"github.com/futig/PortScannerGo/domain"
 )
 
-const SRC_PORT = 54321
-const SRC_IP = "192.168.0.107"
 
 func ScanPorts(cfg *domain.ScannerConfig, writer func(domain.ScanResult, *domain.ScannerConfig)) {
 	if cfg.Threads == 0 {
@@ -85,7 +83,8 @@ func scanPort(protocol string, dstPort int, cfg *domain.ScannerConfig ) (domain.
 	var result domain.ScanResult
 
 	if protocol == "tcp" {
-		open, duration, err = scanTCP(net.IP(SRC_IP), cfg.Ip, SRC_PORT, dstPort, cfg.Timeout, cfg.Verbose)
+		srcIp := net.ParseIP(domain.SRC_IP).To4()
+		open, duration, err = scanTCP(srcIp, cfg.Ip, domain.SRC_PORT, dstPort, cfg.Timeout, cfg.Verbose)
 		if err != nil {
 			return result, false
 		}

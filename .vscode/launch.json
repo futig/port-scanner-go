@@ -11,8 +11,10 @@
             "mode": "auto",
             "program": "${fileDirname}",
             "args": [
-                "portscan", "--timeout", "4", "-j", "10", "--verbose", "-g", "1.1.1.1", "tcp/80", "tcp/12000-12500", "udp/3000-3100,3200,3300-4000"
-            ]
+                "portscan", "--timeout", "4", "--verbose", "-g", "1.1.1.1", "tcp/80", "tcp/12000-12500", "udp/3000-3100,3200,3300-4000"
+            ],
+            "preLaunchTask": "build",
+            "sudo": true
         }
     ]   
 }
